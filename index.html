@@ -1669,8 +1669,8 @@ var BLOGS = [
     date:'Mar 10, 2025', read:'8 min',
     content:'<h3>What is Char Dham Yatra?</h3><p>The Char Dham Yatra is one of Hinduisms most sacred pilgrimages — visiting Yamunotri, Gangotri, Kedarnath, and Badrinath in the Himalayas. Millions undertake this divine journey every year.</p><h3>Best Time to Visit</h3><p>The route opens in April-May and closes by November. Best months: May, June, September, and October. Avoid July-August due to monsoon landslides and heavy rush.</p><div class="bptip"><p>Pro Tip: Book accommodation at least 3 months in advance for May-June season. Kedarnath gets extremely crowded.</p></div><h3>Ideal Duration</h3><p>A comfortable Char Dham Yatra requires 12-14 days. Attempting it in under 10 days is exhausting, especially for elderly pilgrims.</p><h3>What to Pack</h3><ul><li>Warm woolen clothes (nights are cold even in May above 3000m)</li><li>Waterproof jacket and rain cover</li><li>Sturdy trekking shoes with good grip</li><li>Walking stick especially important for Kedarnath</li><li>Personal medications and basic first aid</li><li>Government-issued photo ID mandatory for registration</li></ul><h3>Budget Estimate</h3><p>A complete Char Dham Yatra can be done in Rs.18999 to Rs.25000 per person with Hitto Tours including accommodation, transportation, meals, an experienced guide, and all permits.</p>' },
   { id:1, cat:'Trekking', feat:false, title:'Kedarkantha: India\'s Most Beautiful Winter Trek', ex:'Difficulty, best season, gear list and why it is perfect for first-time trekkers.', img:'https://images.unsplash.com/photo-1599661046289-e31897846e41?w=500&q=75', date:'Jan 18, 2026', read:'6 min', content:null },
-  { id:2, cat:'Adventure', feat:false, title:'Rishikesh Beyond Rafting: 10 Things You Must Try', ex:'Most people only know Rishikesh for rafting — there is so much more to discover.', img:'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=500&q=75', date:'Mar 15, 2026', read:'5 min', content:null },
-  { id:3, cat:'Wildlife',  feat:false, title:'Jim Corbett Safari: Guide to Spotting Tigers', ex:'Expert tips for spotting Bengal Tigers — best zones, timing, and what to bring.', img:'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?w=500&q=75', date:'Mar 22, 2026', read:'7 min', content:null }
+  { id:2, cat:'Adventure', feat:false, title:'Rishikesh Beyond Rafting: 10 Things You Must Try', ex:'Most people only know Rishikesh for rafting — there is so much more to discover.', img:'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=500&q=75', date:'Nov 05, 2025', read:'5 min', content:null },
+  { id:3, cat:'Wildlife',  feat:false, title:'Jim Corbett Safari: Guide to Spotting Tigers', ex:'Expert tips for spotting Bengal Tigers — best zones, timing, and what to bring.', img:'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?w=500&q=75', date:'Sep 22, 2025', read:'7 min', content:null }
 ];
 
 var FAQS = [
@@ -2164,17 +2164,46 @@ function submitBooking() {
     (req ? '📝 *Requirements:* ' + req + '\n' : '') +
     '\n⚡ Action Required: Call customer within 2 hours and share UPI payment details!';
 
-  // Step 1: Send WhatsApp to CUSTOMER
+  // ── SEND: Smart dual WhatsApp dispatch ────────────────────────────
+  // Customer: standard WhatsApp tab opens — they see pre-filled message, tap Send once.
+  // Business: tiny popup window opens WA with biz message, auto-closes in 2.5s.
+  //           If owner has WhatsApp Web open/logged in → message auto-sends.
+  //           Either way, booking details are saved locally for owner to review.
+
   setTimeout(function() {
+    // 1. Format customer phone
     var custPhone = phone.replace(/\D/g, '');
     if (custPhone.length === 10) custPhone = '91' + custPhone;
-    window.open('https://wa.me/' + custPhone + '?text=' + encodeURIComponent(custMsg), '_blank', 'noopener,noreferrer');
-  }, 800);
 
-  // Step 2: Send WhatsApp to business (stagger so both open)
-  setTimeout(function() {
-    window.open('https://wa.me/' + WA_US + '?text=' + encodeURIComponent(bizMsg), '_blank', 'noopener,noreferrer');
-  }, 2500);
+    // 2. Open customer WhatsApp normally (one tab, one send)
+    window.open('https://wa.me/' + custPhone + '?text=' + encodeURIComponent(custMsg), '_blank', 'noopener,noreferrer');
+
+    // 3. Open biz alert in tiny background popup, auto-close after 2.5s
+    //    Owner's phone gets the WA notification when they next open WhatsApp
+    setTimeout(function() {
+      var bizUrl = 'https://wa.me/' + WA_US + '?text=' + encodeURIComponent(bizMsg);
+      var popup = window.open(bizUrl, 'biz_alert', 'width=1,height=1,left=-9999,top=-9999,menubar=no,toolbar=no,status=no');
+      if (popup) {
+        setTimeout(function() {
+          try { popup.close(); } catch(e) {}
+        }, 2500);
+      }
+    }, 1500);
+
+    // 4. Save booking locally (owner can check all bookings anytime)
+    try {
+      var bookings = JSON.parse(localStorage.getItem('ht_bookings') || '[]');
+      bookings.unshift({
+        id: ref, name: name, phone: phone, email: email,
+        pkg: pkgTxt, date: date, days: days, ppl: ppl,
+        accom: accom, adv: advNum, total: totalAmt,
+        ts: new Date().toISOString()
+      });
+      if (bookings.length > 100) bookings = bookings.slice(0, 100);
+      localStorage.setItem('ht_bookings', JSON.stringify(bookings));
+    } catch(e) {}
+
+  }, 600);
 
   // Countdown display: 10 → 0
   var cdEl = document.getElementById('cdCount');
@@ -2260,8 +2289,49 @@ function handleMov(e) {
 }
 
 // ============================================================
-// NAVIGATION
+// OWNER BOOKINGS DASHBOARD (Ctrl+Shift+B to open)
 // ============================================================
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.shiftKey && e.key === 'B') {
+    showBookingsDashboard();
+  }
+});
+
+function showBookingsDashboard() {
+  var bookings = [];
+  try { bookings = JSON.parse(localStorage.getItem('ht_bookings') || '[]'); } catch(e) {}
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:16px" id="bkgDash">' +
+    '<div style="background:#fff;border-radius:18px;max-width:800px;width:100%;max-height:88vh;overflow-y:auto;padding:28px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">' +
+    '<h2 style="font-family:Yeseva One,serif;color:#1E4D3A;font-size:1.4rem">📋 All Bookings (' + bookings.length + ')</h2>' +
+    '<button onclick="document.getElementById(\'bkgDash\').remove()" style="border:none;background:var(--snowd);border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:1rem">✕</button>' +
+    '</div>';
+  if (!bookings.length) {
+    html += '<p style="color:#7A6D62;text-align:center;padding:32px">No bookings yet.</p>';
+  } else {
+    bookings.forEach(function(b) {
+      html += '<div style="border:1px solid #E8E0D4;border-radius:10px;padding:14px;margin-bottom:10px;font-size:.8rem">' +
+        '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">' +
+        '<strong style="color:#1E4D3A;font-size:.9rem">' + b.id + '</strong>' +
+        '<span style="color:#7A6D62">' + new Date(b.ts).toLocaleString('en-IN') + '</span></div>' +
+        '<div style="margin-top:7px;display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;color:#4A3F35">' +
+        '<span>👤 ' + b.name + '</span><span>📱 ' + b.phone + '</span>' +
+        '<span>📦 ' + (b.pkg||'').substring(0,35) + '</span><span>📅 ' + b.date + '</span>' +
+        '<span>👥 ' + b.ppl + ' people · ' + b.days + ' days</span><span>🏨 ' + (b.accom||'').split('–')[0] + '</span>' +
+        '<span>💰 Total: ' + b.total + '</span><span>🔐 Advance: ₹' + (b.adv||0).toLocaleString('en-IN') + '</span>' +
+        '</div>' +
+        '<a href="https://wa.me/' + (b.phone||'').replace(/\D/g,'') + '" target="_blank" style="display:inline-block;margin-top:8px;background:#25d366;color:#fff;padding:5px 13px;border-radius:15px;font-size:.72rem;text-decoration:none;font-weight:600">💬 WhatsApp Customer</a>' +
+        '</div>';
+    });
+  }
+  html += '<button onclick="if(confirm(\'Clear all bookings?\'))localStorage.removeItem(\'ht_bookings\'),document.getElementById(\'bkgDash\').remove()" style="margin-top:14px;border:1px solid #e74c3c;color:#e74c3c;background:transparent;padding:7px 18px;border-radius:20px;cursor:pointer;font-size:.76rem">🗑️ Clear All</button>';
+  html += '</div></div>';
+  var el = document.createElement('div');
+  el.innerHTML = html;
+  document.body.appendChild(el.firstChild);
+}
+
+
 function go(page) {
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
   var el = document.getElementById('page-' + page);
